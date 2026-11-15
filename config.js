@@ -12,8 +12,9 @@ window.CONFIG = {
   match_time:     { value: 300, min: 60, max: 600, step: 10 },   // s, the whole match (5 minutes)
   countdown:      { value: 3, min: 0, max: 5, step: 1 },         // s of 3-2-1 before the fight
   fighters:       { value: 8, min: 4, max: 8, step: 1 },         // you + bots filling the empty seats
-  arena_radius:   { value: 11, min: 5, max: 13, step: 1 },       // rings of tiles around the centre (6 -> 9 -> 11: bigger each time you asked)
-  view_tiles:     { value: 15, min: 9, max: 24, step: 1 },       // tiles across the screen: the camera follows you
+  arena_radius:   { value: 12, min: 5, max: 14, step: 1 },       // rings of tiles around the centre (6 -> 9 -> 11 -> 12: bigger each time you asked)
+  view_tiles:     { value: 22, min: 9, max: 30, step: 1 },       // tiles across the screen: the camera follows you (15 -> 22: you see more of the map)
+  obstacle_gap:   { value: 2.3, min: 1, max: 5, step: 0.1 },     // tiles kept between separate obstacles (walls of one stretch still join)
 
   // ---- The floor: rings fall from the outside in, faster and faster ------------------------
   ring_first:     { value: 12, min: 5, max: 90, step: 1 },       // s, the first (outer) ring starts to shake

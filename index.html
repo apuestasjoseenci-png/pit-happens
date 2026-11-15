@@ -222,7 +222,7 @@ function damageTile(t, n) {
   t.hp -= n; t.hitT = 0.15;
   if (t.hp <= 0) { t.st = 1; t.t = tune.break_warn; t.broken = true; }
 }
-const breakable = t => t && t.ob && (t.ob.kind === 'crate' || t.ob.kind === 'barrel');
+const breakable = t => t && t.ob && (t.ob.kind === 'crate' || t.ob.kind === 'barrel' || t.ob.kind === 'pot');
 function hitCrate(t, n) {
   if (!breakable(t)) return false;
   t.ob.hp -= n; t.ob.flash = 0.12;
@@ -271,6 +271,47 @@ const ROSTER = [ // you + seven bots, each with its own colour
   { name: 'BOT Olga', color: '#ffe14d' }, { name: 'BOT Baltasar', color: '#f2f2f2' },
 ];
 let chosenHero = 'knight', selIndex = 0;
+
+// Five maps, each its own biome and layout. A layout lists one quarter; it is turned four ways, so
+// no spawn is luckier. Groups of walls join; every other obstacle keeps obstacle_gap from the rest.
+const BIOMES = [
+  { name: 'Pradera', sky: ['#8fd3ff', '#4f8fe0', '#23408f'], cloud: '255,255,255',
+    ground: ['#80d651', '#7cd14d', '#6cc23f'], path: ['#eed09a', '#ebcc94', '#ddbb80'], plaza: ['#f2d69a', '#efd294', '#e3c283'],
+    lip: '#4c9a2a', earth: ['#c4874a', '#9c6534'], pebble: '#d9b48a', tuft: '#4e9a2c', flowers: ['#fff6a0', '#ffb3d1'],
+    tree: 'oak', leaves: ['#2f6d22', '#8fd463', '#4f9a33', '#3a7d27'], rock: ['#c9c4ba', '#9a958b', '#5f5b54'], rockMoss: 'rgba(95,150,58,0.85)',
+    wall: { mortar: '#5d554b', stones: [[178, 168, 152], [160, 150, 136], [190, 178, 160]], top: ['#d6cdbd', '#b3a894'], moss: '#5f9e3a' },
+    breakA: 'crate', breakB: 'barrel', mapTree: '#2f7d2a',
+    layout: { walls: [[[2, 5], [3, 5]], [[3, 9], [4, 9]]], tree: [[6, 3], [9, 4], [2, 11], [5, 0]], rock: [[8, 1]], breakA: [[1, 7], [6, 6]], breakB: [[4, -3]] } },
+  { name: 'Desierto', sky: ['#ffe2ad', '#f2a860', '#b5602e'], cloud: '255,240,220',
+    ground: ['#f2d08a', '#efcb82', '#e0b86c'], path: ['#e0b070', '#dcaa68', '#cc9a58'], plaza: ['#ead2a6', '#e6cc9c', '#d9bb88'],
+    lip: '#d9a85e', earth: ['#c98a4a', '#9e6430'], pebble: '#e8c79a', tuft: '#b49a4a', flowers: null,
+    tree: 'cactus', rock: ['#e6c49a', '#c9996a', '#8e623c'], rockMoss: null,
+    wall: { mortar: '#8a6a44', stones: [[222, 186, 136], [206, 168, 118], [232, 198, 150]], top: ['#f3dcb2', '#dcbd8a'], moss: null },
+    breakA: 'pot', breakB: 'crate', mapTree: '#5f9a3a',
+    layout: { walls: [[[1, 6], [2, 6]], [[8, 3], [8, 4]]], tree: [[4, 4], [3, 10], [10, -3], [6, 0]], rock: [[5, 2], [7, -6]], breakA: [[2, 3], [9, 1]], breakB: [[4, -5]] } },
+  { name: 'Tundra helada', sky: ['#eef7ff', '#9cc6ea', '#4a6f9e'], cloud: '255,255,255',
+    ground: ['#f2f7fc', '#edf3fa', '#dce7f2'], path: ['#cfe6f5', '#c8e1f2', '#b3d4ea'], plaza: ['#dde9f3', '#d8e5f0', '#c8d9e8'],
+    lip: '#ffffff', earth: ['#8a94a6', '#5f6878'], pebble: '#b8c2d0', tuft: null, flowers: null, sparkle: true,
+    tree: 'pine', rock: ['#e4f1fb', '#a9c8e0', '#6f8fab'], rockMoss: 'rgba(255,255,255,0.95)',
+    wall: { mortar: '#6b7686', stones: [[178, 190, 204], [160, 172, 188], [196, 206, 218]], top: ['#ffffff', '#e1ebf4'], moss: '#ffffff' },
+    breakA: 'crate', breakB: 'barrel', mapTree: '#2c6a4a',
+    layout: { walls: [[[4, 3], [4, 4]], [[2, 9], [3, 9]]], tree: [[2, 6], [8, 5], [9, -5], [6, -1], [1, 10]], rock: [[5, -1], [3, -8]], breakA: [[0, 4]], breakB: [[7, 2]] } },
+  { name: 'Volcán', sky: ['#2a1414', '#6e2410', '#ff7a1a'], cloud: '70,45,40',
+    ground: ['#5c544e', '#58504a', '#4a433e'], path: ['#3e3734', '#3a3330', '#2e2926'], plaza: ['#6a5f56', '#665b52', '#574d45'],
+    lip: '#2e2926', earth: ['#4a3a30', '#2a1f1a'], pebble: '#6a5a50', tuft: null, flowers: null, lava: true,
+    tree: 'dead', rock: ['#6e6762', '#4a4440', '#262220'], rockMoss: null, rockGlow: true,
+    wall: { mortar: '#ff6a1a', stones: [[70, 64, 60], [58, 52, 50], [84, 76, 70]], top: ['#7a706a', '#4f4844'], moss: null },
+    breakA: 'barrel', breakB: 'pot', mapTree: '#3a2a20',
+    layout: { walls: [[[3, 6], [3, 7]], [[6, -3], [7, -3]]], tree: [[5, 5], [2, 9], [9, 2]], rock: [[4, 1], [10, -2], [1, -6]], breakA: [[6, 1]], breakB: [[1, 4]] } },
+  { name: 'Bosque otoñal', sky: ['#ffe4c0', '#f2a37a', '#7a4466'], cloud: '255,235,220',
+    ground: ['#c9a24a', '#c49c45', '#ae8836'], path: ['#a77b52', '#a2764e', '#8d6542'], plaza: ['#c9a57a', '#c49f74', '#b08c62'],
+    lip: '#8a6a2a', earth: ['#a8703e', '#7a4a26'], pebble: '#c49a6a', tuft: '#8a6a2a', flowers: ['#e2552b', '#f2a33a'],
+    tree: 'oak', leaves: ['#7a2e14', '#ffb347', '#e0632a', '#b8401c'], rock: ['#b9b4a8', '#8a857b', '#55514a'], rockMoss: 'rgba(110,140,50,0.8)',
+    wall: { mortar: '#55493e', stones: [[170, 156, 138], [150, 138, 122], [184, 170, 150]], top: ['#cfc2ac', '#ab9c84'], moss: '#7a8a32' },
+    breakA: 'crate', breakB: 'barrel', mapTree: '#c4521f',
+    layout: { walls: [[[5, 2], [5, 3]], [[3, 10], [4, 10]]], tree: [[2, 4], [7, 5], [9, -1], [4, 8], [0, 7]], rock: [[6, -3]], breakA: [[7, -6], [3, -7]], breakB: [[2, 1]] } },
+];
+let biome = BIOMES[0];
 function makeFighter(k, x, y, hero) {
   const r = ROSTER[k], h = HEROES[hero];
   const maxHp = tune.hp * tune[h.hp];
@@ -285,23 +326,30 @@ const player = () => state.fighters[0];
 
 // ---- Scenes ---------------------------------------------------------------------------
 let scene, state;
-function buildMap(tiles) { // walls, rocks and crates, the same in each quarter so no spawn is luckier
-  const C = R, put = (dx, dy, kind) => {
-    for (const [a, b] of [[dx, dy], [-dy, dx], [-dx, -dy], [dy, -dx]]) {
-      const t = tiles[(C + b) * N + (C + a)];
-      if (t && t.ring <= R - 1) t.ob = { kind, hp: tune.crate_hp, flash: 0 };
-    }
-  };
-  [[2, 5], [3, 5], [3, 4]].forEach(([a, b]) => put(a, b, 'wall'));                 // corner forts, clear of the spawn points
-  [[2, 7], [3, 7]].forEach(([a, b]) => put(a, b, 'wall'));                          // outer walls
-  [[3, 9], [4, 9], [5, 8]].forEach(([a, b]) => put(a, b, 'wall'));                  // the far ruins
-  [[7, 2], [2, -7], [9, -2]].forEach(([a, b]) => put(a, b, 'rock'));
-  [[6, 3], [8, 4], [2, 10], [4, 1]].forEach(([a, b]) => put(a, b, 'tree'));
-  [[2, 3], [5, -1], [1, 6], [7, -4]].forEach(([a, b]) => put(a, b, 'crate'));
-  [[4, -2], [8, -6], [0, 4]].forEach(([a, b]) => put(a, b, 'barrel'));
+function buildMap(tiles) { // the biome's layout, turned four ways, kept clear of spawns and spaced out
+  const C = R, lay = biome.layout, gap = tune.obstacle_gap, count = tune.fighters, placed = [];
+  const spawns = []; for (let k = 0; k < count; k++) { const a = Math.PI / 2 + k / count * Math.PI * 2; spawns.push([Math.cos(a) * (R - 1.8), Math.sin(a) * (R - 1.8)]); }
+  const put = (list, kind, group) => list.forEach(([dx, dy]) => {
+    [[dx, dy], [-dy, dx], [-dx, -dy], [dy, -dx]].forEach(([a, b], rot) => {
+      const t = tiles[(C + b) * N + (C + a)], g = group + ':' + rot;
+      if (!t || t.ring > R - 1 || t.ob) return;
+      if (spawns.some(([x, y]) => Math.hypot(a - x, b - y) < 1.6)) return;
+      if (placed.some(q => q.g !== g && Math.hypot(q.a - a, q.b - b) < gap)) return;
+      t.ob = { kind, hp: tune.crate_hp, flash: 0 }; placed.push({ a, b, g });
+    });
+  });
+  lay.walls.forEach((seg, k) => put(seg, 'wall', 'w' + k));
+  lay.tree.forEach((c, k) => put([c], 'tree', 't' + k));
+  lay.rock.forEach((c, k) => put([c], 'rock', 'r' + k));
+  lay.breakA.forEach((c, k) => put([c], biome.breakA, 'a' + k));
+  lay.breakB.forEach((c, k) => put([c], biome.breakB, 'b' + k));
 }
+let matchNo = 0;
 function reset() {
-  seed = Number(params.get('seed')) || CONFIG.seed;
+  matchNo++; // a new seed each match (from the clock), so maps and fights differ; ?seed= pins it
+  seed = Number(params.get('seed')) || (CONFIG.seed + Math.floor(clock.now() * 1000) + matchNo * 7919) | 0;
+  const pick = params.get('biome');
+  biome = BIOMES[pick !== null && BIOMES[Number(pick)] ? Number(pick) : Math.floor(rng() * BIOMES.length)];
   R = tune.arena_radius; N = 2 * R + 1;
   const tiles = [];
   for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
@@ -898,7 +946,7 @@ function visibleRange() { // the tiles on screen, with a margin for walls and fa
 
 function drawSky() {
   const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, '#8fd3ff'); g.addColorStop(0.55, '#4f8fe0'); g.addColorStop(1, '#23408f');
+  g.addColorStop(0, biome.sky[0]); g.addColorStop(0.55, biome.sky[1]); g.addColorStop(1, biome.sky[2]);
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   const tt = clock.now();
   for (let k = 0; k < 9; k++) { // drifting clouds far below the island
@@ -908,7 +956,7 @@ function drawSky() {
   }
 }
 function drawCloud(x, y, s, a) {
-  ctx.fillStyle = `rgba(255,255,255,${a})`;
+  ctx.fillStyle = `rgba(${biome.cloud},${a})`;
   ctx.beginPath();
   ctx.ellipse(x, y, 70 * s, 22 * s, 0, 0, Math.PI * 2);
   ctx.ellipse(x - 35 * s, y - 10 * s, 32 * s, 22 * s, 0, 0, Math.PI * 2);
@@ -917,9 +965,8 @@ function drawCloud(x, y, s, a) {
 }
 
 function tileColors(t) { // [the ground, a soft patch on it]: neighbours differ only a shade, so no grid shows
-  if (t.ring <= 1) return (t.i + t.j) % 2 ? ['#f2d69a', '#e3c283'] : ['#efd294', '#e3c283']; // the stone plaza
-  if (t.ring === 4 || t.ring === 7) return (t.i + t.j) % 2 ? ['#eed09a', '#ddbb80'] : ['#ebcc94', '#ddbb80']; // sand paths
-  return (t.i + t.j) % 2 ? ['#80d651', '#6cc23f'] : ['#7cd14d', '#6cc23f'];
+  const c = t.ring <= 1 ? biome.plaza : (t.ring === 4 || t.ring === 7 || t.ring === 10) ? biome.path : biome.ground;
+  return [(t.i + t.j) % 2 ? c[0] : c[1], c[2]];
 }
 /** A rounded rectangle path. */
 function rrect(x, y, w, h, r) { ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h); }
@@ -927,7 +974,8 @@ function warnShake(t) {
   if (t.st !== 1) return [0, 0];
   const a = clock.now() * 38 + t.i * 3 + t.j * 7; return [Math.sin(a) * camS * 0.05, Math.cos(a * 1.3) * camS * 0.03];
 }
-function drawTile(t, fallT) {
+/** One slab. layer: 'base' (ground and edge), 'decor' (paths, patches, cracks), or both when left out. */
+function drawTile(t, fallT, layer) {
   const S = camS;
   let [sx, sy] = toS(t.i, t.j);
   const [wx, wy] = warnShake(t); sx += wx; sy += wy;
@@ -940,33 +988,47 @@ function drawTile(t, fallT) {
   }
   const h = S * TILT, side = S * 0.72;
   const below = tileIJ(t.i, t.j + 1);
-  if (fallT !== undefined || !standable(below)) { // the slab's front face: a grass lip, then layered earth and stone
-    ctx.fillStyle = '#4c9a2a'; ctx.fillRect(sx, sy + h - 1, S, side * 0.18);
-    ctx.fillStyle = '#c4874a'; ctx.fillRect(sx, sy + h + side * 0.17, S, side * 0.4);
-    ctx.fillStyle = '#9c6534'; ctx.fillRect(sx, sy + h + side * 0.55, S, side * 0.45);
+  if (layer !== 'decor' && (fallT !== undefined || !standable(below))) { // the slab's front face: a grass lip, then layered earth and stone
+    ctx.fillStyle = biome.lip; ctx.fillRect(sx, sy + h - 1, S, side * 0.18);
+    ctx.fillStyle = biome.earth[0]; ctx.fillRect(sx, sy + h + side * 0.17, S, side * 0.4);
+    ctx.fillStyle = biome.earth[1]; ctx.fillRect(sx, sy + h + side * 0.55, S, side * 0.45);
+    if (biome.lava && hash(t.i, t.j, 13) < 0.5) { ctx.fillStyle = '#ff7a1a'; ctx.fillRect(sx + S * hash(t.i, t.j, 14) * 0.8, sy + h + side * 0.6, S * 0.12, side * 0.4); }
     ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.fillRect(sx, sy + h + side * 0.17, S, side * 0.06);
-    ctx.fillStyle = '#d9b48a';
+    ctx.fillStyle = biome.pebble;
     for (let k = 0; k < 3; k++) { const rx = sx + hash(t.i, t.j, k) * S * 0.8 + S * 0.05; ctx.beginPath(); ctx.ellipse(rx, sy + h + side * (0.3 + hash(t.j, t.i, k) * 0.4), S * 0.07, S * 0.045, 0, 0, 7); ctx.fill(); }
     ctx.fillStyle = '#4c3420'; ctx.beginPath();
     ctx.moveTo(sx, sy + h + side);
     for (let k = 0; k <= 4; k++) ctx.lineTo(sx + k * S / 4, sy + h + side + (k % 2 ? S * 0.08 : 0));
     ctx.lineTo(sx + S, sy + h + side - 2); ctx.lineTo(sx, sy + h + side - 2); ctx.fill();
   }
-  const [c1, c2] = tileColors(t);
-  ctx.fillStyle = c1; ctx.fillRect(sx - 0.6, sy - 0.6, S + 1.2, h + 1.2); // overlap a hair so no seam shows
-  const ga = ctx.globalAlpha;
-  if (hash(t.i, t.j, 31) < 0.6) { // soft patches of darker ground, a little light here and there
-    ctx.globalAlpha = ga * 0.55; ctx.fillStyle = c2; ctx.beginPath();
-    ctx.ellipse(sx + S * (0.25 + hash(t.i, t.j, 32) * 0.5), sy + h * (0.3 + hash(t.i, t.j, 33) * 0.4), S * (0.25 + hash(t.i, t.j, 34) * 0.2), h * 0.22, 0, 0, 7); ctx.fill();
+  const ga = ctx.globalAlpha, isPath = t.ring <= 1 || t.ring === 4 || t.ring === 7 || t.ring === 10;
+  if (layer !== 'decor') { ctx.fillStyle = biome.ground[0]; ctx.fillRect(sx - 0.6, sy - 0.6, S + 1.2, h + 1.2); } // one colour everywhere: no grid
+  if (layer === 'base') { ctx.restore(); return; }
+  if (isPath) { // paths and the plaza: round patches that run into each other, never squares
+    ctx.fillStyle = (t.ring <= 1 ? biome.plaza : biome.path)[0];
+    ctx.beginPath(); ctx.ellipse(sx + S / 2, sy + h / 2, S * 0.76, h * 0.76, 0, 0, 7); ctx.fill();
+  } else if (hash(t.i, t.j, 31) < 0.5) { // soft patches of darker ground
+    ctx.globalAlpha = ga * 0.35; ctx.fillStyle = biome.ground[2]; ctx.beginPath();
+    ctx.ellipse(sx + S * (0.25 + hash(t.i, t.j, 32) * 0.5), sy + h * (0.3 + hash(t.i, t.j, 33) * 0.4), S * (0.3 + hash(t.i, t.j, 34) * 0.25), h * 0.26, 0, 0, 7); ctx.fill();
   }
-  if (hash(t.i, t.j, 35) < 0.3) { ctx.globalAlpha = ga * 0.18; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.ellipse(sx + S * 0.5, sy + h * 0.5, S * 0.3, h * 0.2, 0, 0, 7); ctx.fill(); }
   ctx.globalAlpha = ga;
-  if (t.ring > 1 && t.ring !== 4 && t.ring !== 7 && hash(t.i, t.j, 9) < 0.45) { // tufts of grass and flowers
-    ctx.strokeStyle = '#4e9a2c'; ctx.lineWidth = Math.max(1.5, S * 0.03); ctx.beginPath();
+  const onGround = t.ring > 1 && t.ring !== 4 && t.ring !== 7 && t.ring !== 10;
+  if (onGround && biome.sparkle && hash(t.i, t.j, 15) < 0.25) { // glints on the snow
+    const gl = 0.5 + 0.5 * Math.sin(clock.now() * 3 + t.i * 1.7 + t.j);
+    ctx.fillStyle = `rgba(255,255,255,${gl})`; ctx.beginPath(); const gx = sx + S * (0.2 + hash(t.i, t.j, 16) * 0.6), gy = sy + h * 0.5;
+    ctx.moveTo(gx, gy - S * 0.06); ctx.lineTo(gx + S * 0.015, gy); ctx.lineTo(gx, gy + S * 0.06); ctx.lineTo(gx - S * 0.015, gy); ctx.fill();
+  }
+  if (onGround && biome.lava && hash(t.i, t.j, 17) < 0.18) { // glowing cracks in the ash
+    const gl = 0.6 + 0.4 * Math.sin(clock.now() * 2 + t.i + t.j * 1.3);
+    ctx.strokeStyle = `rgba(255,110,30,${gl})`; ctx.lineWidth = Math.max(1.5, S * 0.03); ctx.beginPath();
+    const gx = sx + S * 0.2, gy = sy + h * (0.3 + hash(t.i, t.j, 18) * 0.4); ctx.moveTo(gx, gy); ctx.lineTo(gx + S * 0.2, gy - h * 0.1); ctx.lineTo(gx + S * 0.4, gy + h * 0.05); ctx.lineTo(gx + S * 0.6, gy - h * 0.05); ctx.stroke();
+  }
+  if (onGround && biome.tuft && hash(t.i, t.j, 9) < 0.45) { // tufts of grass and flowers
+    ctx.strokeStyle = biome.tuft; ctx.lineWidth = Math.max(1.5, S * 0.03); ctx.beginPath();
     const gx = sx + S * (0.2 + hash(t.i, t.j, 5) * 0.6), gy = sy + h * (0.3 + hash(t.i, t.j, 6) * 0.4);
     ctx.moveTo(gx - S * 0.06, gy); ctx.lineTo(gx - S * 0.09, gy - S * 0.1); ctx.moveTo(gx, gy); ctx.lineTo(gx, gy - S * 0.13); ctx.moveTo(gx + S * 0.06, gy); ctx.lineTo(gx + S * 0.1, gy - S * 0.09);
     ctx.stroke();
-    if (hash(t.i, t.j, 11) < 0.25) { ctx.fillStyle = hash(t.i, t.j, 12) < 0.5 ? '#fff6a0' : '#ffb3d1'; ctx.beginPath(); ctx.arc(gx + S * 0.2, gy - S * 0.02, S * 0.04, 0, 7); ctx.fill(); }
+    if (biome.flowers && hash(t.i, t.j, 11) < 0.25) { ctx.fillStyle = hash(t.i, t.j, 12) < 0.5 ? biome.flowers[0] : biome.flowers[1]; ctx.beginPath(); ctx.arc(gx + S * 0.2, gy - S * 0.02, S * 0.04, 0, 7); ctx.fill(); }
   }
   const dmg = tune.tile_hp - t.hp;
   if (dmg > 0 || t.broken) { // cracks spread with each hit
@@ -999,7 +1061,7 @@ function drawObstacleAt(t, sx, sy, S) {
     const H2 = S * 0.9, L = isWall(I - 1, J), Rt = isWall(I + 1, J), r = S * 0.12;
     const x0 = sx - (L ? 1 : 0), w0 = S + (L ? 1 : 0) + (Rt ? 1 : 0);
     castShadow(sx, sy, S, 1);
-    ctx.fillStyle = '#5d554b'; rrect(x0, sy - H2 + h * 0.5, w0, H2 + h * 0.5, [L ? 0 : r, Rt ? 0 : r, Rt ? 0 : r, L ? 0 : r]); ctx.fill(); // mortar
+    ctx.fillStyle = biome.wall.mortar; rrect(x0, sy - H2 + h * 0.5, w0, H2 + h * 0.5, [L ? 0 : r, Rt ? 0 : r, Rt ? 0 : r, L ? 0 : r]); ctx.fill(); // mortar
     for (let row = 0; row < 3; row++) { // the stones of the front face, in courses
       const yy = sy + h - H2 + row * H2 / 3 + 1;
       let xx = sx + (row % 2 ? -S * 0.2 : 0);
@@ -1008,19 +1070,19 @@ function drawObstacleAt(t, sx, sy, S) {
         const x1 = Math.max(xx + 1.5, sx + (L ? 0 : 1.5)), x2 = Math.min(xx + ww - 1.5, sx + S - (Rt ? 0 : 1.5));
         if (x2 > x1 + 2) {
           const v = hash(I + k, J + row, 42), g = ctx.createLinearGradient(0, yy, 0, yy + H2 / 3);
-          const base = v < 0.33 ? [178, 168, 152] : v < 0.66 ? [160, 150, 136] : [190, 178, 160];
+          const base = biome.wall.stones[v < 0.33 ? 0 : v < 0.66 ? 1 : 2];
           g.addColorStop(0, `rgb(${base[0] + 25},${base[1] + 25},${base[2] + 25})`); g.addColorStop(1, `rgb(${base[0] - 30},${base[1] - 30},${base[2] - 30})`);
           ctx.fillStyle = g; rrect(x1, yy, x2 - x1, H2 / 3 - 3, S * 0.05); ctx.fill();
         }
         xx += ww;
       }
     }
-    const g = ctx.createLinearGradient(0, sy - H2, 0, sy - H2 + h); g.addColorStop(0, '#d6cdbd'); g.addColorStop(1, '#b3a894');
+    const g = ctx.createLinearGradient(0, sy - H2, 0, sy - H2 + h); g.addColorStop(0, biome.wall.top[0]); g.addColorStop(1, biome.wall.top[1]);
     ctx.fillStyle = g; rrect(x0, sy - H2, w0, h, [L ? 0 : r, Rt ? 0 : r, Rt ? 0 : r, L ? 0 : r]); ctx.fill(); // the top
     ctx.fillStyle = 'rgba(70,60,50,0.35)';
     for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.ellipse(sx + S * (0.2 + k * 0.3), sy - H2 + h * (0.35 + hash(I, J, k + 50) * 0.3), S * 0.1, h * 0.07, 0, 0, 7); ctx.fill(); }
-    ctx.fillStyle = '#5f9e3a'; // moss along the top edge
-    for (let k = 0; k < 4; k++) if (hash(I, J, k + 60) < 0.55) { ctx.beginPath(); ctx.ellipse(sx + S * (0.12 + k * 0.25), sy - H2 + h * 0.95, S * 0.11, h * 0.1, 0, 0, 7); ctx.fill(); }
+    ctx.fillStyle = biome.wall.moss || 'rgba(0,0,0,0)'; // moss (or snow) along the top edge
+    for (let k = 0; k < 4; k++) if (biome.wall.moss && hash(I, J, k + 60) < (biome.wall.moss === '#ffffff' ? 0.95 : 0.55)) { ctx.beginPath(); ctx.ellipse(sx + S * (0.12 + k * 0.25), sy - H2 + h * 0.95, S * 0.11, h * 0.1, 0, 0, 7); ctx.fill(); }
     ctx.strokeStyle = 'rgba(40,34,28,0.8)'; ctx.lineWidth = Math.max(1.5, S * 0.025);
     rrect(x0, sy - H2, w0, H2 + h, [L ? 0 : r, Rt ? 0 : r, Rt ? 0 : r, L ? 0 : r]); ctx.stroke();
   } else if (ob.kind === 'rock') { // a weathered boulder with facets, moss and pebbles
@@ -1028,26 +1090,29 @@ function drawObstacleAt(t, sx, sy, S) {
     castShadow(sx, sy, S, 0.7);
     const pts = []; for (let k = 0; k < 10; k++) { const an = Math.PI + k / 9 * Math.PI, rr = S * (0.42 + hash(I, J, k + 70) * 0.12); pts.push([cx + Math.cos(an) * rr, cy + Math.sin(an) * rr * 1.25]); }
     const g = ctx.createLinearGradient(cx - S * 0.4, cy - S * 0.6, cx + S * 0.4, cy + h * 0.1);
-    g.addColorStop(0, '#c9c4ba'); g.addColorStop(0.55, '#9a958b'); g.addColorStop(1, '#5f5b54');
+    g.addColorStop(0, biome.rock[0]); g.addColorStop(0.55, biome.rock[1]); g.addColorStop(1, biome.rock[2]);
     ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(cx - S * 0.47, cy + h * 0.08); pts.forEach(([x, y]) => ctx.lineTo(x, y)); ctx.lineTo(cx + S * 0.47, cy + h * 0.1); ctx.quadraticCurveTo(cx, cy + h * 0.26, cx - S * 0.47, cy + h * 0.08); ctx.fill();
     ctx.strokeStyle = 'rgba(40,36,32,0.75)'; ctx.lineWidth = Math.max(1.5, S * 0.025); ctx.stroke();
     ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.beginPath(); ctx.moveTo(cx - S * 0.3, cy - S * 0.25); ctx.lineTo(cx - S * 0.05, cy - S * 0.45); ctx.lineTo(cx + S * 0.2, cy - S * 0.38); ctx.stroke(); // a lit ridge
     ctx.strokeStyle = 'rgba(40,36,32,0.4)'; ctx.beginPath(); ctx.moveTo(cx - S * 0.05, cy - S * 0.45); ctx.lineTo(cx, cy - S * 0.1); ctx.lineTo(cx + S * 0.25, cy + h * 0.05); ctx.stroke(); // a facet
-    ctx.fillStyle = 'rgba(95,150,58,0.85)'; ctx.beginPath(); ctx.ellipse(cx - S * 0.12, cy - S * 0.42, S * 0.18, S * 0.07, -0.3, 0, 7); ctx.fill();
+    if (biome.rockMoss) { ctx.fillStyle = biome.rockMoss; ctx.beginPath(); ctx.ellipse(cx - S * 0.12, cy - S * 0.42, S * 0.18, S * 0.07, -0.3, 0, 7); ctx.fill(); }
+    if (biome.rockGlow) { ctx.strokeStyle = `rgba(255,110,30,${0.6 + 0.4 * Math.sin(clock.now() * 2 + I)})`; ctx.lineWidth = Math.max(1.5, S * 0.03); ctx.beginPath(); ctx.moveTo(cx - S * 0.25, cy - S * 0.1); ctx.lineTo(cx - S * 0.05, cy - S * 0.3); ctx.lineTo(cx + S * 0.15, cy - S * 0.15); ctx.stroke(); }
     ctx.fillStyle = '#8f8a80'; for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.ellipse(cx + S * (0.35 + k * 0.08), cy + h * (0.18 + k * 0.05), S * 0.05, S * 0.03, 0, 0, 7); ctx.fill(); }
+  } else if (ob.kind === 'tree' && biome.tree !== 'oak') {
+    drawBiomeTree(biome.tree, sx, sy, S, I, J);
   } else if (ob.kind === 'tree') { // an oak: bark trunk, layered leaves, light from the top left
-    const cx = sx + S / 2, base = sy + h * 0.75, sway = Math.sin(clock.now() * 1.3 + I) * S * 0.02;
+    const cx = sx + S / 2, base = sy + h * 0.75, sway = Math.sin(clock.now() * 1.3 + I) * S * 0.02, lv = biome.leaves;
     castShadow(sx + S * 0.2, sy, S * 1.3, 1.4);
     const tg = ctx.createLinearGradient(cx - S * 0.12, 0, cx + S * 0.12, 0); tg.addColorStop(0, '#9a6a3c'); tg.addColorStop(1, '#5b3a1f');
     ctx.fillStyle = tg; ctx.beginPath(); ctx.moveTo(cx - S * 0.16, base); ctx.lineTo(cx - S * 0.09, base - S * 0.75); ctx.lineTo(cx + S * 0.09, base - S * 0.75); ctx.lineTo(cx + S * 0.17, base); ctx.quadraticCurveTo(cx, base + h * 0.08, cx - S * 0.16, base); ctx.fill();
     ctx.strokeStyle = 'rgba(50,30,15,0.6)'; ctx.lineWidth = Math.max(1, S * 0.02); ctx.beginPath(); ctx.moveTo(cx - S * 0.03, base - S * 0.1); ctx.lineTo(cx - S * 0.05, base - S * 0.6); ctx.moveTo(cx + S * 0.06, base - S * 0.05); ctx.lineTo(cx + S * 0.04, base - S * 0.45); ctx.stroke();
     const blobs = [[0, -1.25, 0.55], [-0.38, -1.0, 0.4], [0.38, -1.02, 0.42], [-0.18, -1.55, 0.38], [0.22, -1.5, 0.36]];
     for (const [dx, dy, r] of blobs) { // leaves: dark underside first, then lit tops
-      ctx.fillStyle = '#2f6d22'; ctx.beginPath(); ctx.arc(cx + dx * S + sway, base + dy * S + S * 0.04, r * S, 0, 7); ctx.fill();
+      ctx.fillStyle = lv[0]; ctx.beginPath(); ctx.arc(cx + dx * S + sway, base + dy * S + S * 0.04, r * S, 0, 7); ctx.fill();
     }
     for (const [dx, dy, r] of blobs) {
       const g = ctx.createRadialGradient(cx + (dx - r * 0.35) * S + sway, base + (dy - r * 0.4) * S, r * S * 0.1, cx + dx * S + sway, base + dy * S, r * S);
-      g.addColorStop(0, '#8fd463'); g.addColorStop(0.6, '#4f9a33'); g.addColorStop(1, '#3a7d27');
+      g.addColorStop(0, lv[1]); g.addColorStop(0.6, lv[2]); g.addColorStop(1, lv[3]);
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx + dx * S + sway, base + dy * S, r * S * 0.92, 0, 7); ctx.fill();
     }
     ctx.fillStyle = 'rgba(200,240,150,0.35)'; for (let k = 0; k < 6; k++) { ctx.beginPath(); ctx.ellipse(cx + (hash(I, k, 80) - 0.6) * S * 0.8 + sway, base - S * (1.1 + hash(J, k, 81) * 0.6), S * 0.06, S * 0.035, -0.5, 0, 7); ctx.fill(); }
@@ -1070,6 +1135,17 @@ function drawObstacleAt(t, sx, sy, S) {
     ctx.fillStyle = '#c8cfd8'; for (const yy of [fy + 4, fy + H2 + h * 0.1 - 5]) for (const xx of [x + w * 0.08 + S * 0.035, x + w * 0.92 - S * 0.035]) { ctx.beginPath(); ctx.arc(xx, yy, Math.max(1.2, S * 0.018), 0, 7); ctx.fill(); }
     ctx.strokeStyle = 'rgba(40,24,10,0.85)'; ctx.lineWidth = Math.max(1.5, S * 0.025); ctx.strokeRect(x, top, w, fy - top + H2 + h * 0.1);
     if (ob.hp < tune.crate_hp) { ctx.strokeStyle = '#2a1d10'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x + w * 0.3, fy + 4); ctx.lineTo(x + w * 0.45, fy + H2 * 0.5); ctx.lineTo(x + w * 0.35, fy + H2 - 4); ctx.stroke(); }
+  } else if (ob.kind === 'pot') { // a clay amphora with a painted band
+    const cx = sx + S / 2, bot = sy + h * 0.8, fl = ob.flash > 0, r = S * 0.3;
+    castShadow(sx, sy, S, 0.5);
+    const g = ctx.createRadialGradient(cx - r * 0.4, bot - r * 1.3, r * 0.1, cx, bot - r, r * 1.3);
+    g.addColorStop(0, fl ? '#fff' : '#f0a46a'); g.addColorStop(0.6, fl ? '#fff' : '#c4683a'); g.addColorStop(1, fl ? '#fff' : '#8a4224');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(cx - r * 0.35, bot); ctx.quadraticCurveTo(cx - r * 1.25, bot - r * 0.9, cx - r * 0.45, bot - r * 1.85);
+    ctx.lineTo(cx - r * 0.5, bot - r * 2.2); ctx.lineTo(cx + r * 0.5, bot - r * 2.2); ctx.lineTo(cx + r * 0.45, bot - r * 1.85); ctx.quadraticCurveTo(cx + r * 1.25, bot - r * 0.9, cx + r * 0.35, bot); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(60,25,10,0.85)'; ctx.lineWidth = Math.max(1.5, S * 0.025); ctx.stroke();
+    ctx.strokeStyle = '#3a2a5a'; ctx.lineWidth = Math.max(2, S * 0.04); ctx.beginPath(); ctx.moveTo(cx - r * 0.95, bot - r * 1.05); ctx.quadraticCurveTo(cx, bot - r * 0.9, cx + r * 0.95, bot - r * 1.05); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.beginPath(); ctx.ellipse(cx - r * 0.45, bot - r * 1.3, r * 0.15, r * 0.3, 0.2, 0, 7); ctx.fill();
+    ctx.fillStyle = '#5a2a14'; ctx.beginPath(); ctx.ellipse(cx, bot - r * 2.2, r * 0.5, r * 0.14, 0, 0, 7); ctx.fill();
   } else if (ob.kind === 'barrel') { // staves, iron hoops, a lit side
     const cx = sx + S / 2, bw = S * 0.36, H2 = S * 0.7, bot = sy + h * 0.8, top = bot - H2, fl = ob.flash > 0;
     castShadow(sx, sy, S, 0.6);
@@ -1080,6 +1156,43 @@ function drawObstacleAt(t, sx, sy, S) {
     ctx.fillStyle = fl ? '#fff' : '#a8733f'; ctx.beginPath(); ctx.ellipse(cx, top, bw * 0.88, h * 0.16, 0, 0, 7); ctx.fill();
     ctx.strokeStyle = 'rgba(40,24,10,0.85)'; ctx.lineWidth = Math.max(1.5, S * 0.025); ctx.stroke();
     ctx.strokeStyle = 'rgba(70,40,15,0.5)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(cx, top, bw * 0.6, h * 0.1, 0, 0, 7); ctx.stroke();
+  }
+}
+
+/** Trees for the other biomes: a snowy pine, a cactus, a burnt tree. */
+function drawBiomeTree(kind, sx, sy, S, I, J) {
+  const h = S * TILT, cx = sx + S / 2, base = sy + h * 0.75;
+  castShadow(sx + S * 0.15, sy, S * 1.2, 1.3);
+  ctx.lineJoin = 'round';
+  if (kind === 'pine') {
+    ctx.fillStyle = '#5b3a1f'; ctx.fillRect(cx - S * 0.07, base - S * 0.3, S * 0.14, S * 0.32);
+    const tiers = [[0.62, -0.25, 0.55], [0.5, -0.65, 0.5], [0.36, -1.02, 0.45]];
+    for (const [w, y, hh] of tiers) {
+      const g = ctx.createLinearGradient(cx - w * S, 0, cx + w * S, 0); g.addColorStop(0, '#3f8a5a'); g.addColorStop(1, '#1d4d34');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(cx - w * S, base + y * S); ctx.lineTo(cx, base + (y - hh) * S - S * 0.25); ctx.lineTo(cx + w * S, base + y * S); ctx.quadraticCurveTo(cx, base + (y + 0.08) * S, cx - w * S, base + y * S); ctx.fill();
+      ctx.strokeStyle = 'rgba(20,40,30,0.6)'; ctx.lineWidth = Math.max(1.2, S * 0.02); ctx.stroke();
+      ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(cx - w * S * 0.55, base + (y - hh * 0.45) * S); ctx.lineTo(cx, base + (y - hh) * S - S * 0.25); ctx.lineTo(cx + w * S * 0.35, base + (y - hh * 0.55) * S); ctx.quadraticCurveTo(cx, base + (y - hh * 0.35) * S, cx - w * S * 0.55, base + (y - hh * 0.45) * S); ctx.fill();
+    }
+  } else if (kind === 'cactus') {
+    const g = ctx.createLinearGradient(cx - S * 0.15, 0, cx + S * 0.15, 0); g.addColorStop(0, '#8ccf5a'); g.addColorStop(1, '#3f7a2a');
+    const arm = (x, y, w, hh) => { rrect(x, y, w, hh, w / 2); ctx.fill(); ctx.stroke(); };
+    ctx.fillStyle = g; ctx.strokeStyle = 'rgba(30,60,20,0.8)'; ctx.lineWidth = Math.max(1.5, S * 0.025);
+    arm(cx - S * 0.42, base - S * 0.95, S * 0.18, S * 0.5); arm(cx - S * 0.42, base - S * 0.55, S * 0.3, S * 0.15);
+    arm(cx + S * 0.24, base - S * 1.15, S * 0.18, S * 0.55); arm(cx + S * 0.1, base - S * 0.72, S * 0.3, S * 0.15);
+    arm(cx - S * 0.14, base - S * 1.45, S * 0.28, S * 1.47);
+    ctx.strokeStyle = 'rgba(30,70,20,0.5)'; ctx.beginPath(); ctx.moveTo(cx, base - S * 1.35); ctx.lineTo(cx, base - S * 0.05); ctx.stroke();
+    ctx.fillStyle = '#f4ecd0'; for (let k = 0; k < 8; k++) { ctx.beginPath(); ctx.arc(cx + (k % 2 ? 0.08 : -0.08) * S, base - S * (0.2 + k * 0.15), Math.max(1, S * 0.012), 0, 7); ctx.fill(); }
+    if (hash(I, J, 95) < 0.5) { ctx.fillStyle = '#ff6aa0'; ctx.beginPath(); ctx.arc(cx, base - S * 1.45, S * 0.07, 0, 7); ctx.fill(); }
+  } else if (kind === 'dead') {
+    ctx.strokeStyle = '#1e1714'; ctx.lineCap = 'round';
+    ctx.lineWidth = S * 0.16; ctx.beginPath(); ctx.moveTo(cx, base); ctx.lineTo(cx + S * 0.03, base - S * 0.9); ctx.stroke();
+    ctx.lineWidth = S * 0.08; ctx.beginPath();
+    ctx.moveTo(cx + S * 0.02, base - S * 0.55); ctx.lineTo(cx - S * 0.35, base - S * 0.95);
+    ctx.moveTo(cx + S * 0.03, base - S * 0.75); ctx.lineTo(cx + S * 0.38, base - S * 1.15);
+    ctx.moveTo(cx + S * 0.03, base - S * 0.9); ctx.lineTo(cx - S * 0.05, base - S * 1.35); ctx.stroke();
+    ctx.lineWidth = S * 0.04; ctx.beginPath(); ctx.moveTo(cx - S * 0.25, base - S * 0.85); ctx.lineTo(cx - S * 0.4, base - S * 0.8); ctx.moveTo(cx + S * 0.28, base - S * 1.05); ctx.lineTo(cx + S * 0.3, base - S * 1.25); ctx.stroke();
+    ctx.fillStyle = `rgba(255,120,40,${0.6 + 0.4 * Math.sin(clock.now() * 3 + I)})`;
+    for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.arc(cx + (hash(I, k, 96) - 0.5) * S * 0.1, base - S * (0.2 + k * 0.25), S * 0.025, 0, 7); ctx.fill(); }
   }
 }
 
@@ -1270,7 +1383,7 @@ function drawWorld() {
     ctx.save(); ctx.globalAlpha = clamp(1.4 - ft, 0, 1);
     ctx.translate(sx, sy); ctx.rotate(ft * 5); drawHero(f, 0, 0, S * 1.15 * (1 - ft * 0.4), true); ctx.restore();
   }
-  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const t = tileIJ(i, j); if (t && t.st < 2) drawTile(t); }
+  for (const layer of ['base', 'decor']) for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const t = tileIJ(i, j); if (t && t.st < 2) drawTile(t, undefined, layer); }
   // On the floor: target zones, rings, shadows.
   for (const r of state.rains) {
     const [sx, sy] = toS(r.x, r.y), k = r.t / 0.6;
@@ -1393,7 +1506,7 @@ function drawMinimap(x0, y0, m) {
   const c = m / N;
   for (const t of state.tiles) {
     if (!t || t.st >= 2) continue;
-    ctx.fillStyle = t.st === 1 ? '#ff5a4a' : t.ob ? (breakable(t) ? '#c58a4a' : t.ob.kind === 'tree' ? '#2f7d2a' : '#9aa0aa') : '#6cc046';
+    ctx.fillStyle = t.st === 1 ? '#ff5a4a' : t.ob ? (breakable(t) ? '#c58a4a' : t.ob.kind === 'tree' ? biome.mapTree : '#9aa0aa') : biome.ground[0];
     ctx.fillRect(x0 + t.i * c, y0 + t.j * c, c + 0.5, c + 0.5);
   }
   for (const b of state.boulders) { ctx.strokeStyle = '#ff3b2f'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x0 + b.x * c, y0 + b.y * c, c * 1.2, 0, 7); ctx.stroke(); }
@@ -1438,6 +1551,7 @@ function drawHUD() {
   if (state.cd > 0) {
     const n = Math.ceil(state.cd), k = state.cd - Math.floor(state.cd);
     textO(String(n), W / 2, H / 2, (120 + 60 * k) * u, '#ffe14d');
+    textO(`Mapa: ${biome.name}`, W / 2, H / 2 - 110 * u, 34 * u, '#ffe14d');
     textO('¡Rompe cajas, usa tu habilidad, tira a todos al vacío!', W / 2, H / 2 + 110 * u, 22 * u, '#fff');
   }
   if (state.banner) {
@@ -1470,7 +1584,7 @@ function drawTouch() {
 function drawTitle() {
   setCam(); drawSky();
   const u = Math.min(W, H) / 720;
-  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const t = tileIJ(i, j); if (t && t.st < 2) drawTile(t); }
+  for (const layer of ['base', 'decor']) for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const t = tileIJ(i, j); if (t && t.st < 2) drawTile(t, undefined, layer); }
   const items = [];
   for (const t of state.tiles) if (t && t.ob) items.push({ y: t.j + 0.98, t });
   for (const f of state.fighters) items.push({ y: f.y, f });
@@ -1481,7 +1595,7 @@ function drawTitle() {
   }
   ctx.fillStyle = 'rgba(16,12,40,0.45)'; ctx.fillRect(0, 0, W, H);
   textO(TITLE, W / 2, H * 0.18, 96 * u, '#ffe14d');
-  textO('4 héroes · 8 guerreros · 1 arena que se cae · 5 minutos', W / 2, H * 0.18 + 68 * u, 24 * u, '#fff');
+  textO('4 héroes · 5 mapas · 8 guerreros · 5 minutos', W / 2, H * 0.18 + 68 * u, 24 * u, '#fff');
   CONTROLS.forEach((c, i) => textO(c, W / 2, H * 0.44 + i * 34 * u, 20 * u, '#e8f0ff'));
   textO('Juegas tú contra 7 bots', W / 2, H * 0.44 + CONTROLS.length * 34 * u + 8 * u, 18 * u, '#ffd23f');
   const k = 1 + Math.sin(clock.now() * 4) * 0.05;
@@ -1527,7 +1641,7 @@ function drawFigures() {
   textO('Héroes y objetos', W / 2, 30 * u, 28 * u, '#fff');
   const s = 120 * u;
   HERO_KEYS.forEach((key, k) => {
-    const x = W / 4 * (k + 0.5), y = 230 * u;
+    const x = W / 4 * (k + 0.5), y = 165 * u;
     const fake = { hero: key, color: ROSTER[k * 2].color, face: 0, hp: 1, maxHp: 1, weapon: HEROES[key].weapon, swing: 0, squash: 0, walk: 0, spin: 0, flash: 0, block: 0, dodgeT: 0 };
     ctx.fillStyle = '#78ca49'; ctx.beginPath(); ctx.ellipse(x, y, s * 0.6, s * 0.2, 0, 0, 7); ctx.fill();
     drawHero(fake, x, y, s, true);
@@ -1539,12 +1653,23 @@ function drawFigures() {
     { pk: 'potion', n: 'Poción' }, { pk: 'gem', n: 'Gema' }, { boulder: true, n: 'Catapulta' }];
   const S = 70 * u;
   props.forEach((p, k) => {
-    const x = W / props.length * (k + 0.5), y = 470 * u;
+    const x = W / props.length * (k + 0.5), y = 360 * u;
     if (p.ob) drawObstacleAt({ i: 0, j: 0, ob: p.ob }, x - S / 2, y - S * TILT, S);
     else if (p.pk) drawPickup(p.pk, x, y, S);
     else drawBoulder(x, y - S * 0.4, S * 0.9, 0.3);
     textO(p.n, x, y + 36 * u, 16 * u, '#fff');
   });
+  const keep = biome; // the five biomes: a patch of ground, a tree, a rock and a wall in each
+  BIOMES.forEach((b, k) => {
+    biome = b;
+    const x = W / 5 * (k + 0.5), y = 600 * u, S2 = 52 * u;
+    ctx.fillStyle = b.ground[0]; rrect(x - S2 * 1.6, y - S2 * 0.6, S2 * 3.2, S2 * 1.1, 10 * u); ctx.fill();
+    drawObstacleAt({ i: 0, j: 0, ob: { kind: 'tree', hp: 1, flash: 0 } }, x - S2 * 1.3, y - S2 * TILT - 4 * u, S2);
+    drawObstacleAt({ i: 0, j: 0, ob: { kind: 'rock', hp: 1, flash: 0 } }, x - S2 * 0.4, y - S2 * TILT, S2 * 0.8);
+    drawObstacleAt({ i: 0, j: 0, ob: { kind: b.breakA, hp: 3, flash: 0 } }, x + S2 * 0.45, y - S2 * TILT, S2 * 0.8);
+    textO(b.name, x, y + 44 * u, 16 * u, '#fff');
+  });
+  biome = keep;
 }
 
 // ---- Loop: fixed step, frame time clamped ---------------------------------------------
