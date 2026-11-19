@@ -9,3 +9,27 @@
 #   date: 2026-01-31
 #   ships: true               # false for a file only the build uses
 #   placeholder: true         # until it is replaced; leave the line out otherwise
+- path: icon-512.png
+  origin: code
+  tool: "copied from mi-juego assets/pwa (drawn on a canvas by script)"
+  model: "claude-opus-5-5"
+  date: 2026-11-19
+  ships: true
+- path: icon-192.png
+  origin: code
+  tool: "copied from mi-juego assets/pwa (drawn on a canvas by script)"
+  model: "claude-opus-5-5"
+  date: 2026-11-19
+  ships: true
+- path: apple-touch-icon.png
+  origin: code
+  tool: "copied from mi-juego assets/pwa (drawn on a canvas by script)"
+  model: "claude-opus-5-5"
+  date: 2026-11-19
+  ships: true
+- path: manifest.webmanifest
+  origin: code
+  tool: "copied from mi-juego assets/pwa (drawn on a canvas by script)"
+  model: "claude-opus-5-5"
+  date: 2026-11-19
+  ships: true

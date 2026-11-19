@@ -1,0 +1,17 @@
+{
+  "name": "Pit Happens",
+  "short_name": "Pit Happens",
+  "description": "Peleas en una isla que se rompe: tú contra 7, aventura y online",
+  "lang": "es",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#1d3f8a",
+  "theme_color": "#1d3f8a",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
